@@ -256,6 +256,7 @@ func sweepone() uintptr {
 
 	// increment locks to ensure that the goroutine is not preempted
 	// in the middle of sweep thus leaving the span in an inconsistent state for next GC
+	// 增加锁确保goroutine在sweep过程中不被抢占，从而使span处于下一次GC的不一致状态
 	_g_.m.locks++
 	if atomic.Load(&mheap_.sweepDrained) != 0 {
 		_g_.m.locks--

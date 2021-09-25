@@ -20,7 +20,27 @@
 // For journal quality proofs that these steps are complete, correct, and terminate see
 // Hudson, R., and Moss, J.E.B. Copying Garbage Collection without stopping the world.
 // Concurrency and Computation: Practice and Experience 15(3-5), 2003.
-//
+
+// todo remove comment here
+// 1. GC 执行清扫终止阶段（sweep termination.）
+//    a. stw， 所有的P进入GC 安全点
+//    b. 清理未清理的spans。只有上一轮的GC的清扫工作完成才可以开始新一轮的GC
+// 2. GC 执行标记阶段（mark phase）
+//    a. gcphase 由 `_GCoff`  转到 `_GCmark`，开启写屏障，开启mutator辅助，将根标记工作入队。除非所有的P都启用了写屏障，否则不会扫描任何对象，这是使用STW完成的。
+//    b. 程序继续。 从这一点来看，GC 工作由scheduler启动的标记workers完成，并由作为allocation的一部分执行的协助完成。 写入屏障为任何指针写入遮蔽覆盖的指针和新的指针值（有关详细信息，请参阅 mbarrier.go）。 **新分配的对象立即标记为黑色**。
+//    c. GC 执行根标记作业。 这包括扫描所有堆栈(stacks)、对所有全局变量、堆外运行时数据结构中的任何堆指针进行着色。 扫描堆栈会停止一个 goroutine，在其堆栈上找到的任何指针进行着色，然后恢复 goroutine。
+//    d. 依次处理灰色队列中的对象，将对象标记成黑色并将它们指向的对象标记成灰色；
+//    e. 由于 GC 工作分布在本地缓存中，因此 GC 使用分布式终止算法来检测何时不再有根标记作业或灰色对象（请参阅 `gcMarkDone`）。 此时，GC 过渡到标记终止。
+//3. GC 执行标记终止
+//   a. stw
+//   b. `gcphase`设置为`_GCmarktermination` ，停止workers以及assists。
+//   c. 执行内务处理(housekeeping)，如刷新 `mcaches`。
+//4. GC 执行清扫阶段
+//   a. 开始之前将`gcphase`设置为`_GCoff`，设置扫描状态并关闭写屏障。
+//   b. 程序继续，从这里开始，最新分配的对象为白色，分配时如果有需要会进行清扫spans（懒清扫）。
+//   c. GC 在后台执行并发清除并响应分配。
+//5. 当发生了足够的分配时，重复上面以1开始的步骤。具体由周期『GC速率』定义。
+
 // 1. GC performs sweep termination.
 //
 //    a. Stop the world. This causes all Ps to reach a GC safe-point.
@@ -80,6 +100,11 @@
 //
 // 5. When sufficient allocation has taken place, replay the sequence
 // starting with 1 above. See discussion of GC rate below.
+
+// ### 并发扫描
+// 有一种情况无法满足条件：
+// 如果goroutine扫描并将两个不相邻的单页跨度释放到堆中，它将分配一个新的两页跨度，但是仍然有其他未扫描的单页跨度可以组合成一个两页跨度。
+// There is one case where this may not suffice: if a goroutine sweeps and frees two nonadjacent one-page spans to the heap, it will allocate a new two-page span, but there can still be other one-page unswept spans which could be combined into a two-page span.
 
 // Concurrent sweep.
 //

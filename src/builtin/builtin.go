@@ -186,11 +186,21 @@ func cap(v Type) int
 //	Channel: The channel's buffer is initialized with the specified
 //	buffer capacity. If zero, or the size is omitted, the channel is
 //	unbuffered.
+// 内置make函数分配只能初始化slice,map,chan对象类型。
+//与new一样，第一个参数传一个type，不是一个值，
+//与new不一样的，make 返回类型与传入参数是一样的，而不是指针。
+//规范主要依赖如下类型确定的：
+// Slice: size指定的长度，capacity（容量）相当于长度。为了指定不同的容量，第二个整型参数也许会被提供，并且不能小于其长度。
+//例如`make([]int, 0, 10)`分配一个底层数组长度10为并返回一个长度为0容量为10的slice。
+// Map： 一个空的map会分配一个足够支撑指定数量的元素空间，大小可以省略，在这种情况下，将分配较小的起始大小。
+// Channel：chan初始化缓冲大小根据指定的参数容量，如果忽略或者为0，则chan是无缓冲的。
+
 func make(t Type, size ...IntegerType) Type
 
 // The new built-in function allocates memory. The first argument is a type,
 // not a value, and the value returned is a pointer to a newly
 // allocated zero value of that type.
+// 内置new函数分配内存，第一个参数是一个类型，不是一个值，以及返回值为一个指向分配该类型零值的指针。
 func new(Type) *Type
 
 // The complex built-in function constructs a complex value from two

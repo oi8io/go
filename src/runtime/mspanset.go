@@ -48,6 +48,7 @@ type spanSet struct {
 	// span in the heap were stored in this set, and each span were
 	// the minimum size (1 runtime page, 8 KiB), then roughly the
 	// smallest heap which would be unrepresentable is 32 TiB in size.
+	// 高32位表示head，低32位表示tail
 	index headTailIndex
 }
 
@@ -74,15 +75,15 @@ type spanSetBlock struct {
 func (b *spanSet) push(s *mspan) {
 	// Obtain our slot.
 	cursor := uintptr(b.index.incTail().tail() - 1)
+	// top 指放在哪一个spanSetBlock，bottom表示存放在spanSetBlock具体数组位置
 	top, bottom := cursor/spanSetBlockEntries, cursor%spanSetBlockEntries
-
 	// Do we need to add a block?
 	spineLen := atomic.Loaduintptr(&b.spineLen)
 	var block *spanSetBlock
 retry:
 	if top < spineLen {
 		spine := atomic.Loadp(unsafe.Pointer(&b.spine))
-		blockp := add(spine, sys.PtrSize*top)
+		blockp := add(spine, sys.PtrSize*top) //数组，直接通过指针长度计算偏移量
 		block = (*spanSetBlock)(atomic.Loadp(blockp))
 	} else {
 		// Add a new block to the spine, potentially growing
@@ -97,10 +98,10 @@ retry:
 		}
 
 		if spineLen == b.spineCap {
-			// Grow the spine.
+			// Grow the spine. 两倍扩容
 			newCap := b.spineCap * 2
 			if newCap == 0 {
-				newCap = spanSetInitSpineCap
+				newCap = spanSetInitSpineCap // 默认64位系统上分配1G
 			}
 			newSpine := persistentalloc(newCap*sys.PtrSize, cpu.CacheLineSize, &memstats.gcMiscSys)
 			if b.spineCap != 0 {
@@ -121,9 +122,11 @@ retry:
 		}
 
 		// Allocate a new block from the pool.
+		// 从pool中拿到spanSetBlock进行分配，如果pool中没有则从系统栈上分配
 		block = spanSetBlockPool.alloc()
 
 		// Add it to the spine.
+		// 计算偏移量
 		blockp := add(b.spine, sys.PtrSize*top)
 		// Blocks are allocated off-heap, so no write barrier.
 		atomic.StorepNoWB(blockp, unsafe.Pointer(block))

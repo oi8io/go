@@ -519,6 +519,7 @@ func mallocinit() {
 		//
 		// On AIX, mmaps starts at 0x0A00000000000000 for 64-bit.
 		// processes.
+		// 64位Linux系统分配 00c000000000-7fc000000000
 		for i := 0x7f; i >= 0; i-- {
 			var p uintptr
 			switch {
@@ -871,7 +872,7 @@ func (c *mcache) nextFree(spc spanClass) (v gclinkptr, s *mspan, shouldhelpgc bo
 	s = c.alloc[spc]
 	shouldhelpgc = false
 	freeIndex := s.nextFreeIndex()
-	if freeIndex == s.nelems {
+	if freeIndex == s.nelems { //默认 empty 的时候也会走这里
 		// The span is full.
 		if uintptr(s.allocCount) != s.nelems {
 			println("runtime: s.allocCount=", s.allocCount, "s.nelems=", s.nelems)
@@ -1358,6 +1359,7 @@ var persistentChunks *notInHeap
 // If align is 0, uses default align (currently 8).
 // The returned memory will be zeroed.
 //
+// 永久分配，表示在off-heap上分配，这里采用系统栈
 // Consider marking persistentalloc'd types go:notinheap.
 func persistentalloc(size, align uintptr, sysStat *sysMemStat) unsafe.Pointer {
 	var p *notInHeap

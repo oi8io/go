@@ -36,9 +36,12 @@ var deBruijnIdx32ctz = [32]byte{
 
 // Ctz64 counts trailing (low-order) zeroes,
 // and if all are zero, then 64.
+// x和deBruijn64ctz相乘，令人惊讶的是，没有两个单 1 词散列到同一位置。
 func Ctz64(x uint64) int {
-	x &= -x                       // isolate low-order bit
-	y := x * deBruijn64ctz >> 58  // extract part of deBruijn sequence
+	x &= -x                       // 移除低位，找到第一个为1所在的位，如11100最终得到 100 isolate low-order bit
+	//取出高6位，如果不取最高6位最为保险，例如向左移动了64位，取中间的位就会得不到真正的结果
+	// 已知，现在的坐标为64，那么i的值与当前坐标的偏移量就知道序列向左移动了多少位
+	y := x * deBruijn64ctz >> 58  // hash函数h(x) = (x * deBruijn) >> (n - lgn） 这个地方由64-log64=64-6=58， extract part of deBruijn sequence
 	i := int(deBruijnIdx64ctz[y]) // convert to bit index
 	z := int((x - 1) >> 57 & 64)  // adjustment if zero
 	return i + z

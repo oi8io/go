@@ -155,6 +155,7 @@ func (c *mcache) refill(spc spanClass) {
 		if s.sweepgen != mheap_.sweepgen+3 {
 			throw("bad sweepgen in refill")
 		}
+		// 满了就放回mcentral full 或者partial
 		mheap_.central[spc].mcentral.uncacheSpan(s)
 	}
 
